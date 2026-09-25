@@ -178,6 +178,7 @@ export default function Navbar({
                 <Tooltip title="Notificaciones">
                   <IconButton
                     color="inherit"
+                    aria-label="Ver notificaciones del sistema"
                     onClick={(e) => setNotifAnchorEl(e.currentTarget)}
                     size="small"
                   >
@@ -251,7 +252,7 @@ export default function Navbar({
                 </Button>
 
                 <Tooltip title="Cerrar sesión">
-                  <IconButton size="small" color="error" onClick={onLogout}>
+                  <IconButton size="small" color="error" aria-label="Cerrar sesión de usuario" onClick={onLogout}>
                     <LogoutIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
@@ -277,7 +278,7 @@ export default function Navbar({
 
             {/* Selector Modo Oscuro */}
             <Tooltip title={mode === 'dark' ? 'Modo Claro' : 'Modo Oscuro'}>
-              <IconButton onClick={toggleColorMode} color="inherit" size="small">
+              <IconButton onClick={toggleColorMode} color="inherit" size="small" aria-label="Cambiar tema de color">
                 {mode === 'dark' ? <Brightness7Icon fontSize="small" /> : <Brightness4Icon fontSize="small" />}
               </IconButton>
             </Tooltip>
