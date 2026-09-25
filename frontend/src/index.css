@@ -1,0 +1,101 @@
+:root {
+  font-family: 'Plus Jakarta Sans', 'Outfit', system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color-scheme: light dark;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  background-color: #F8FAFC;
+}
+
+/* Custom modern scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+/* Gradient accents and text effects */
+.gradient-text-orange {
+  background: linear-gradient(135deg, #FF6F22 0%, #FF9052 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.gradient-text-blue {
+  background: linear-gradient(135deg, #0B4F9C 0%, #0077FE 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hero-glow-blob {
+  position: absolute;
+  width: 450px;
+  height: 450px;
+  border-radius: 50%;
+  filter: blur(90px);
+  pointer-events: none;
+  opacity: 0.35;
+  z-index: 0;
+}
+
+.glow-orange {
+  background: radial-gradient(circle, #FF6F22 0%, rgba(255, 111, 34, 0) 70%);
+}
+
+.glow-blue {
+  background: radial-gradient(circle, #0B4F9C 0%, rgba(11, 79, 156, 0) 70%);
+}
+
+.glow-teal {
+  background: radial-gradient(circle, #00A896 0%, rgba(0, 168, 150, 0) 70%);
+}
+
+/* Mobile simulator wrapper styling */
+.mobile-device-frame {
+  max-width: 420px;
+  margin: 0 auto;
+  border-radius: 36px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 10px #1E293B;
+  overflow: hidden;
+  background: #FFFFFF;
+}
+
+/* Subtle micro-interaction pulse */
+@keyframes softPulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.03);
+  }
+}
+
+.pulse-hover:hover {
+  animation: softPulse 1.2s infinite ease-in-out;
+}

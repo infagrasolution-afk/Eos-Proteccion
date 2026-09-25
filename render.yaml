@@ -1,0 +1,55 @@
+services:
+  # ==========================================
+  # 1. Backend Web Service (FastAPI / Python)
+  # ==========================================
+  - type: web
+    name: eos-proteccion-api
+    runtime: python
+    region: oregon
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: DATABASE_URL
+        fromDatabase:
+          name: eos-proteccion-db
+          property: connectionString
+
+  # ==========================================
+  # 2. Frontend Static Site (React / Vite)
+  # ==========================================
+  - type: web
+    name: eos-proteccion-web
+    runtime: static
+    region: oregon
+    plan: free
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    autoDeploy: true
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: eos-proteccion-api
+          property: host
+        # Render añadirá automáticamente el protocolo https:// al host
+
+# ==========================================
+# 3. Base de Datos Gestionada (PostgreSQL)
+# ==========================================
+databases:
+  - name: eos-proteccion-db
+    databaseName: eos_proteccion
+    user: eos_admin
+    region: oregon
+    plan: free
