@@ -5,14 +5,15 @@ import { getAppTheme } from './theme';
 import Navbar from './components/Navbar';
 import HeroBanner from './components/HeroBanner';
 import ProductCards from './components/ProductCards';
+import PublicQuoteSection from './components/PublicQuoteSection';
 import QuoteCalculatorModal from './components/QuoteCalculatorModal';
 import ClientPortalModal from './components/ClientPortalModal';
 import AdminDashboard from './components/AdminDashboard';
 import BottomNavMobile from './components/BottomNavMobile';
+import LoginModal from './components/LoginModal';
 import Footer from './components/Footer';
-import { api } from './services/api';
+import { api, getCurrentUser, setAuthToken } from './services/api';
 
-// Catálogo por defecto basado en los folletos oficiales en caso de fallo de red
 const DEFAULT_PRODUCTS = [
   {
     id: 1,
@@ -72,6 +73,14 @@ export default function App() {
   const [isMobileSim, setIsMobileSim] = useState(false);
   const [products, setProducts] = useState(DEFAULT_PRODUCTS);
 
+  // Autenticación de Usuarios (Superadmin y Adriana)
+  const [currentUser, setCurrentUser] = useState(() => getCurrentUser());
+  const [loginModalOpen, setLoginModalOpen] = useState(false);
+
+  // Notificaciones en Tiempo Real
+  const [notifications, setNotifications] = useState([]);
+  const [unreadNotifsCount, setUnreadNotifsCount] = useState(0);
+
   // Modales
   const [quoteModalOpen, setQuoteModalOpen] = useState(false);
   const [selectedProductForQuote, setSelectedProductForQuote] = useState(null);
@@ -83,7 +92,22 @@ export default function App() {
     setMode((prev) => (prev === 'light' ? 'dark' : 'light'));
   };
 
+  const loadNotifications = () => {
+    api
+      .getNotifications()
+      .then((data) => {
+        if (data) {
+          setNotifications(data.notifications || []);
+          setUnreadNotifsCount(data.unread_count || 0);
+        }
+      })
+      .catch((err) => {
+        // Ignorar si no está autenticado o en modo offline
+      });
+  };
+
   useEffect(() => {
+    // Cargar productos
     api
       .getProducts()
       .then((data) => {
@@ -92,7 +116,39 @@ export default function App() {
       .catch((err) => {
         console.log('Utilizando catálogo local de respaldo:', err);
       });
-  }, []);
+
+    // Cargar notificaciones y activar polling cada 8 segundos
+    loadNotifications();
+    const interval = setInterval(loadNotifications, 8000);
+    return () => clearInterval(interval);
+  }, [currentUser]);
+
+  const handleLoginSuccess = (user) => {
+    setCurrentUser(user);
+    setCurrentView('admin');
+    loadNotifications();
+  };
+
+  const handleLogout = () => {
+    setAuthToken(null, null);
+    setCurrentUser(null);
+    setCurrentView('public');
+  };
+
+  const handleNotificationClick = async (notif) => {
+    try {
+      await api.markNotificationRead(notif.id);
+      loadNotifications();
+    } catch (e) {}
+    setCurrentView('admin');
+  };
+
+  const handleMarkAllNotificationsRead = async () => {
+    try {
+      await api.markAllNotificationsRead();
+      loadNotifications();
+    } catch (e) {}
+  };
 
   const handleOpenQuoteWithProduct = (productName) => {
     setSelectedProductForQuote(productName);
@@ -119,6 +175,13 @@ export default function App() {
           setQuoteModalOpen(true);
         }}
         onOpenClientPortal={() => setClientPortalOpen(true)}
+        currentUser={currentUser}
+        onOpenLoginModal={() => setLoginModalOpen(true)}
+        onLogout={handleLogout}
+        notifications={notifications}
+        unreadNotifsCount={unreadNotifsCount}
+        onNotificationClick={handleNotificationClick}
+        onMarkAllNotificationsRead={handleMarkAllNotificationsRead}
       />
 
       {/* Contenido Principal según Vista */}
@@ -137,9 +200,14 @@ export default function App() {
               products={products}
               onSelectProductToQuote={handleOpenQuoteWithProduct}
             />
+            {/* Formulario Público para solicitar cotización antes de loguearse */}
+            <PublicQuoteSection />
           </>
         ) : (
-          <AdminDashboard />
+          <AdminDashboard
+            currentUser={currentUser}
+            onLogout={handleLogout}
+          />
         )}
       </Box>
 
@@ -152,7 +220,13 @@ export default function App() {
       {/* Barra Móvil Inferior */}
       <BottomNavMobile
         currentView={currentView}
-        setCurrentView={setCurrentView}
+        setCurrentView={(view) => {
+          if (view === 'admin' && !currentUser) {
+            setLoginModalOpen(true);
+          } else {
+            setCurrentView(view);
+          }
+        }}
         onOpenQuoteModal={() => {
           setSelectedProductForQuote(null);
           setQuoteModalOpen(true);
@@ -186,7 +260,7 @@ export default function App() {
         </Fab>
       </Tooltip>
 
-      {/* Modal Cotizador */}
+      {/* Modal Cotizador Rápido */}
       <QuoteCalculatorModal
         open={quoteModalOpen}
         onClose={() => setQuoteModalOpen(false)}
@@ -197,6 +271,13 @@ export default function App() {
       <ClientPortalModal
         open={clientPortalOpen}
         onClose={() => setClientPortalOpen(false)}
+      />
+
+      {/* Modal de Inicio de Sesión */}
+      <LoginModal
+        open={loginModalOpen}
+        onClose={() => setLoginModalOpen(false)}
+        onLoginSuccess={handleLoginSuccess}
       />
     </Box>
   );

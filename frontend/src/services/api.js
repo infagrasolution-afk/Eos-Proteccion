@@ -5,14 +5,40 @@ if (API_BASE && !API_BASE.startsWith('http://') && !API_BASE.startsWith('https:/
   API_BASE = `https://${API_BASE}`;
 }
 
+export function getAuthToken() {
+  return localStorage.getItem('eos_token');
+}
+
+export function setAuthToken(token, user) {
+  if (token) {
+    localStorage.setItem('eos_token', token);
+    localStorage.setItem('eos_user', JSON.stringify(user));
+  } else {
+    localStorage.removeItem('eos_token');
+    localStorage.removeItem('eos_user');
+  }
+}
+
+export function getCurrentUser() {
+  const u = localStorage.getItem('eos_user');
+  return u ? JSON.parse(u) : null;
+}
+
 export async function fetchJson(endpoint, options = {}) {
+  const token = getAuthToken();
+  const headers = {
+    'Content-Type': 'application/json',
+    ...options.headers,
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   try {
     const res = await fetch(`${API_BASE}${endpoint}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
       ...options,
+      headers,
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: 'Error en la petición' }));
@@ -26,6 +52,35 @@ export async function fetchJson(endpoint, options = {}) {
 }
 
 export const api = {
+  // Autenticación & Usuarios
+  login: (email, password) =>
+    fetchJson('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    }),
+  getMe: () => fetchJson('/api/auth/me'),
+  getUsers: () => fetchJson('/api/users'),
+  createUser: (data) =>
+    fetchJson('/api/users', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  deleteUser: (id) =>
+    fetchJson(`/api/users/${id}`, {
+      method: 'DELETE',
+    }),
+
+  // Notificaciones
+  getNotifications: () => fetchJson('/api/notifications'),
+  markNotificationRead: (id) =>
+    fetchJson(`/api/notifications/${id}/read`, {
+      method: 'PATCH',
+    }),
+  markAllNotificationsRead: () =>
+    fetchJson('/api/notifications/read-all', {
+      method: 'POST',
+    }),
+
   // Perfil del agente
   getProfile: () => fetchJson('/api/profile'),
 
@@ -90,6 +145,10 @@ export const api = {
     fetchJson(`/api/quotes/${id}`, {
       method: 'PATCH',
       body: JSON.stringify({ status, notes }),
+    }),
+  convertLeadToClient: (leadId) =>
+    fetchJson(`/api/quotes/${leadId}/convert-to-client`, {
+      method: 'POST',
     }),
 
   // Siniestros

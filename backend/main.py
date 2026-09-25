@@ -1,13 +1,13 @@
 import os
 from datetime import date, timedelta
 from typing import List, Optional
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException, Query, BackgroundTasks, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from database import engine, get_db, Base
-from models import AgentProfile, InsuranceProduct, Client, Policy, QuoteLead, Claim
+from models import AgentProfile, InsuranceProduct, Client, Policy, QuoteLead, Claim, User, Notification
 from schemas import (
     AgentProfileOut, InsuranceProductOut,
     ClientCreate, ClientUpdate, ClientBase,
@@ -15,8 +15,14 @@ from schemas import (
     PolicyCreate, PolicyOut,
     QuoteLeadCreate, QuoteLeadOut, QuoteLeadStatusUpdate,
     ClaimCreate, ClaimOut, ClaimStatusUpdate,
-    DashboardStats
+    DashboardStats,
+    UserLogin, UserCreate, UserOut, TokenResponse, NotificationOut
 )
+from auth import (
+    verify_password, get_password_hash, create_access_token,
+    get_current_user, require_superadmin, require_admin
+)
+from email_service import send_quote_notification_email_sync
 from seed_data import seed
 
 # Inicializar tablas y datos de prueba
@@ -51,6 +57,96 @@ def health_check():
         "agent": "Adriana Martínez",
         "license": "Lic. G082442"
     }
+
+# ----------------- AUTENTICACIÓN Y ROLES (SUPERADMIN & ADMIN) -----------------
+@app.post("/api/auth/login", response_model=TokenResponse)
+def login(login_data: UserLogin, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == login_data.email.strip().lower()).first()
+    if not user or not verify_password(login_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Credenciales incorrectas. Verifica tu correo y contraseña."
+        )
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Esta cuenta ha sido desactivada.")
+
+    access_token = create_access_token(data={"sub": str(user.id), "role": user.role, "email": user.email})
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": user
+    }
+
+@app.get("/api/auth/me", response_model=UserOut)
+def get_current_user_profile(current_user: User = Depends(get_current_user)):
+    return current_user
+
+@app.get("/api/users", response_model=List[UserOut])
+def list_system_users(current_user: User = Depends(require_superadmin), db: Session = Depends(get_db)):
+    return db.query(User).order_by(User.id.asc()).all()
+
+@app.post("/api/users", response_model=UserOut)
+def create_system_user(user_in: UserCreate, current_user: User = Depends(require_superadmin), db: Session = Depends(get_db)):
+    existing = db.query(User).filter(User.email == user_in.email.strip().lower()).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Este correo ya se encuentra registrado")
+    
+    new_user = User(
+        email=user_in.email.strip().lower(),
+        hashed_password=get_password_hash(user_in.password),
+        full_name=user_in.full_name,
+        role=user_in.role or "admin",
+        is_active=True
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
+
+@app.delete("/api/users/{user_id}")
+def delete_system_user(user_id: int, current_user: User = Depends(require_superadmin), db: Session = Depends(get_db)):
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="No puedes eliminar tu propia cuenta de Superadministrador")
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    db.delete(user)
+    db.commit()
+    return {"message": "Usuario eliminado exitosamente"}
+
+# ----------------- NOTIFICACIONES EN LA APP -----------------
+@app.get("/api/notifications")
+def get_notifications(db: Session = Depends(get_db)):
+    notifs = db.query(Notification).order_by(Notification.created_at.desc()).limit(30).all()
+    unread_count = db.query(Notification).filter(Notification.is_read == False).count()
+    return {
+        "unread_count": unread_count,
+        "notifications": [
+            {
+                "id": n.id,
+                "title": n.title,
+                "message": n.message,
+                "type": n.type,
+                "is_read": n.is_read,
+                "lead_id": n.lead_id,
+                "created_at": n.created_at.isoformat()
+            } for n in notifs
+        ]
+    }
+
+@app.patch("/api/notifications/{notification_id}/read")
+def mark_notification_read(notification_id: int, db: Session = Depends(get_db)):
+    notif = db.query(Notification).filter(Notification.id == notification_id).first()
+    if notif:
+        notif.is_read = True
+        db.commit()
+    return {"message": "Notificación marcada como leída"}
+
+@app.post("/api/notifications/read-all")
+def mark_all_notifications_read(db: Session = Depends(get_db)):
+    db.query(Notification).filter(Notification.is_read == False).update({"is_read": True})
+    db.commit()
+    return {"message": "Todas las notificaciones marcadas como leídas"}
 
 # ----------------- PERFIL DE AGENTE -----------------
 @app.get("/api/profile", response_model=AgentProfileOut)
@@ -281,7 +377,8 @@ def delete_policy(policy_id: int, db: Session = Depends(get_db)):
 
 # ----------------- COTIZADOR Y LEADS -----------------
 @app.post("/api/quotes", response_model=QuoteLeadOut)
-def submit_quote(quote_in: QuoteLeadCreate, db: Session = Depends(get_db)):
+@app.post("/api/quotes/public", response_model=QuoteLeadOut)
+def submit_quote(quote_in: QuoteLeadCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     # Lógica inteligente de cálculo preliminar de subsidio y prima
     income = quote_in.annual_income or 30000.0
     members = quote_in.household_members or 1
@@ -318,13 +415,79 @@ def submit_quote(quote_in: QuoteLeadCreate, db: Session = Depends(get_db)):
         interested_products=quote_in.interested_products,
         estimated_subsidy=round(subsidy, 2),
         estimated_premium=round(est_premium, 2),
-        status="Nuevo",
+        status="Pendiente de Contacto",
         notes=quote_in.notes
     )
     db.add(lead)
     db.commit()
     db.refresh(lead)
+
+    # 1. Crear notificación en la app para Adriana y Administradores
+    try:
+        notif = Notification(
+            title="🔔 ¡Nueva Solicitud de Cotización!",
+            message=f"{lead.client_name} solicita cotización para: {lead.interested_products}. Tel: {lead.phone}",
+            type="quote_request",
+            is_read=False,
+            lead_id=lead.id
+        )
+        db.add(notif)
+        db.commit()
+    except Exception as e:
+        print("Error guardando notificación:", e)
+
+    # 2. Despachar correo electrónico a Adriana Martínez en segundo plano
+    background_tasks.add_task(
+        send_quote_notification_email_sync,
+        client_name=lead.client_name,
+        phone=lead.phone,
+        email=lead.email or "",
+        services=lead.interested_products,
+        income=lead.annual_income,
+        members=lead.household_members,
+        zip_code=lead.zip_code,
+        notes=lead.notes or ""
+    )
+
     return lead
+
+@app.post("/api/quotes/{lead_id}/convert-to-client", response_model=ClientWithPolicies)
+def convert_lead_to_client(lead_id: int, db: Session = Depends(get_db)):
+    lead = db.query(QuoteLead).filter(QuoteLead.id == lead_id).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Prospecto no encontrado")
+
+    # Verificar si ya existe cliente con este teléfono
+    client = db.query(Client).filter(Client.phone == lead.phone).first()
+    if not client:
+        client = Client(
+            full_name=lead.client_name,
+            phone=lead.phone,
+            email=lead.email,
+            city_state=f"FL, Zip: {lead.zip_code}",
+            status="Activo",
+            notes=f"Cliente convertido desde cotización web #{lead.id}. Interés inicial: {lead.interested_products}"
+        )
+        db.add(client)
+        db.commit()
+        db.refresh(client)
+
+    lead.status = "Cerrado / Cliente Creado"
+    db.commit()
+
+    return ClientWithPolicies(
+        id=client.id,
+        full_name=client.full_name,
+        email=client.email,
+        phone=client.phone,
+        id_document=client.id_document,
+        date_of_birth=client.date_of_birth,
+        city_state=client.city_state,
+        status=client.status,
+        notes=client.notes,
+        created_at=client.created_at,
+        policies=[]
+    )
 
 @app.get("/api/quotes", response_model=List[QuoteLeadOut])
 def list_quotes(status: Optional[str] = None, db: Session = Depends(get_db)):

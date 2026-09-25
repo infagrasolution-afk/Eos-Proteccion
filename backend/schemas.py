@@ -152,3 +152,42 @@ class DashboardStats(BaseModel):
     total_monthly_volume: float
     carrier_breakdown: dict
     product_distribution: dict
+
+# --- Autenticación y Usuarios ---
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
+class UserCreate(BaseModel):
+    email: str
+    password: str
+    full_name: str
+    role: Optional[str] = "admin" # "superadmin" | "admin"
+
+class UserOut(BaseModel):
+    id: int
+    email: str
+    full_name: str
+    role: str
+    is_active: bool
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserOut
+
+# --- Notificaciones en Tiempo Real ---
+class NotificationOut(BaseModel):
+    id: int
+    title: str
+    message: str
+    type: str
+    is_read: bool
+    lead_id: Optional[int] = None
+    created_at: datetime
+    class Config:
+        from_attributes = True
+

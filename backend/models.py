@@ -3,6 +3,29 @@ from sqlalchemy import Column, Integer, String, Float, Text, DateTime, Date, For
 from sqlalchemy.orm import relationship
 from database import Base
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(120), unique=True, index=True, nullable=False)
+    hashed_password = Column(String(255), nullable=False)
+    full_name = Column(String(150), nullable=False)
+    role = Column(String(30), default="admin") # "superadmin" o "admin"
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(150), nullable=False)
+    message = Column(Text, nullable=False)
+    type = Column(String(50), default="quote_request") # quote_request, policy_renewal, claim
+    is_read = Column(Boolean, default=False)
+    lead_id = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class AgentProfile(Base):
     __tablename__ = "agent_profiles"
 

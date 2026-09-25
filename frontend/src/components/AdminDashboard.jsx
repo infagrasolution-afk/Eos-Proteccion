@@ -26,6 +26,8 @@ import {
   DialogActions,
   Alert,
   Tooltip,
+  Avatar,
+  Divider,
   useTheme,
 } from '@mui/material';
 import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
@@ -40,12 +42,17 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+import HowToRegIcon from '@mui/icons-material/HowToReg';
+import PersonAddIcon from '@mui/icons-material/PersonAdd';
+import LogoutIcon from '@mui/icons-material/Logout';
+import LockIcon from '@mui/icons-material/Lock';
 
 import { api } from '../services/api';
 
-export default function AdminDashboard() {
+export default function AdminDashboard({ currentUser, onLogout, initialTab = 0 }) {
   const theme = useTheme();
-  const [tabIndex, setTabIndex] = useState(0);
+  const [tabIndex, setTabIndex] = useState(initialTab);
 
   // Datos
   const [stats, setStats] = useState(null);
@@ -53,7 +60,9 @@ export default function AdminDashboard() {
   const [policies, setPolicies] = useState([]);
   const [quotes, setQuotes] = useState([]);
   const [claims, setClaims] = useState([]);
+  const [systemUsers, setSystemUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [actionSuccessMsg, setActionSuccessMsg] = useState('');
 
   // Filtros
   const [clientSearch, setClientSearch] = useState('');
@@ -63,6 +72,7 @@ export default function AdminDashboard() {
   // Modales
   const [openClientModal, setOpenClientModal] = useState(false);
   const [openPolicyModal, setOpenPolicyModal] = useState(false);
+  const [openUserModal, setOpenUserModal] = useState(false);
 
   // Form State Cliente
   const [clientForm, setClientForm] = useState({
@@ -88,6 +98,14 @@ export default function AdminDashboard() {
     coverage_details: '',
   });
 
+  // Form State Nuevo Usuario (Superadmin)
+  const [userForm, setUserForm] = useState({
+    email: '',
+    password: '',
+    full_name: '',
+    role: 'admin',
+  });
+
   const loadAllData = async () => {
     setLoading(true);
     try {
@@ -103,6 +121,11 @@ export default function AdminDashboard() {
       setPolicies(pData);
       setQuotes(qData);
       setClaims(clData);
+
+      if (currentUser?.role === 'superadmin') {
+        const uData = await api.getUsers().catch(() => []);
+        setSystemUsers(uData);
+      }
     } catch (err) {
       console.error('Error loading CRM data:', err);
     } finally {
@@ -112,7 +135,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     loadAllData();
-  }, []);
+  }, [currentUser]);
 
   // Crear Cliente
   const handleSaveClient = async () => {
@@ -124,6 +147,8 @@ export default function AdminDashboard() {
       await api.createClient(clientForm);
       setOpenClientModal(false);
       setClientForm({ full_name: '', phone: '', email: '', id_document: '', city_state: 'Miami, FL', notes: '' });
+      setActionSuccessMsg('¡Cliente registrado exitosamente!');
+      setTimeout(() => setActionSuccessMsg(''), 4000);
       loadAllData();
     } catch (err) {
       alert('Error al guardar cliente: ' + err.message);
@@ -144,13 +169,78 @@ export default function AdminDashboard() {
         subsidy_amount: parseFloat(policyForm.subsidy_amount) || 0,
       });
       setOpenPolicyModal(false);
+      setActionSuccessMsg('¡Póliza emitida y cerrada exitosamente!');
+      setTimeout(() => setActionSuccessMsg(''), 4000);
       loadAllData();
     } catch (err) {
       alert('Error creando póliza: ' + err.message);
     }
   };
 
-  // Actualizar Estado de Lead
+  // Convertir Lead en Cliente y Preparar Emisión de Póliza
+  const handleConvertLead = async (lead) => {
+    try {
+      setLoading(true);
+      const newClient = await api.convertLeadToClient(lead.id);
+
+      // Pre-llenar formulario de póliza para cerrar el contrato de inmediato
+      const defaultCarrier = lead.interested_products.includes('Odontología')
+        ? 'Sun Health & Dental'
+        : lead.interested_products.includes('Cigna')
+        ? 'Cigna'
+        : 'Obamacare';
+
+      setPolicyForm({
+        client_id: newClient.id,
+        policy_number: `POL-${Date.now().toString().slice(-6)}`,
+        insurance_type: lead.interested_products.split(',')[0].trim(),
+        carrier: defaultCarrier,
+        plan_name: 'Plan Titular Eos',
+        monthly_premium: lead.estimated_premium || 0,
+        subsidy_amount: lead.estimated_subsidy || 0,
+        effective_date: new Date().toISOString().split('T')[0],
+        renewal_date: new Date(Date.now() + 365 * 86400000).toISOString().split('T')[0],
+        coverage_details: `Póliza generada a partir de cotización #${lead.id}`,
+      });
+
+      setActionSuccessMsg(`¡Prospecto ${lead.client_name} convertido en Cliente! Procediendo a emisión de póliza.`);
+      setOpenPolicyModal(true);
+      loadAllData();
+    } catch (err) {
+      alert('Error al convertir prospecto: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Crear Usuario (Superadmin)
+  const handleCreateUser = async () => {
+    if (!userForm.email || !userForm.password || !userForm.full_name) {
+      alert('Todos los campos son requeridos');
+      return;
+    }
+    try {
+      await api.createUser(userForm);
+      setOpenUserModal(false);
+      setUserForm({ email: '', password: '', full_name: '', role: 'admin' });
+      setActionSuccessMsg('¡Nuevo administrador creado exitosamente!');
+      setTimeout(() => setActionSuccessMsg(''), 4000);
+      loadAllData();
+    } catch (err) {
+      alert('Error creando usuario: ' + err.message);
+    }
+  };
+
+  const handleDeleteUser = async (userId) => {
+    if (!window.confirm('¿Seguro que deseas eliminar este usuario?')) return;
+    try {
+      await api.deleteUser(userId);
+      loadAllData();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  };
+
   const handleUpdateQuoteStatus = async (id, newStatus) => {
     try {
       await api.updateQuoteStatus(id, newStatus);
@@ -160,7 +250,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // Actualizar Estado de Siniestro
   const handleUpdateClaimStatus = async (id, newStatus) => {
     try {
       await api.updateClaimStatus(id, newStatus);
@@ -183,32 +272,76 @@ export default function AdminDashboard() {
     return true;
   });
 
+  const isSuperadmin = currentUser?.role === 'superadmin';
+
   return (
     <Box sx={{ py: { xs: 3, md: 5 }, minHeight: '85vh' }}>
       <Container maxWidth="xl">
+        {/* Banner de Usuario Activo */}
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            p: 2,
+            mb: 3,
+            borderRadius: '16px',
+            bgcolor: isSuperadmin ? 'rgba(11, 79, 156, 0.08)' : 'rgba(255, 111, 34, 0.08)',
+            border: isSuperadmin ? '1px solid #BFDBFE' : '1px solid #FED7AA',
+            flexWrap: 'wrap',
+            gap: 1.5,
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Avatar sx={{ bgcolor: isSuperadmin ? '#0B4F9C' : '#FF6F22' }}>
+              {isSuperadmin ? <AdminPanelSettingsIcon /> : <HowToRegIcon />}
+            </Avatar>
+            <Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
+                  {currentUser ? currentUser.full_name : 'Adriana Martínez'}
+                </Typography>
+                <Chip
+                  label={isSuperadmin ? 'Superadministrador (CEO)' : 'Administradora / Agente'}
+                  size="small"
+                  color={isSuperadmin ? 'secondary' : 'primary'}
+                  sx={{ fontWeight: 800, height: 22 }}
+                />
+              </Box>
+              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                Sesión activa: {currentUser ? currentUser.email : 'adrianamhealth@gmail.com'}
+              </Typography>
+            </Box>
+          </Box>
+
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button size="small" variant="outlined" startIcon={<RefreshIcon />} onClick={loadAllData}>
+              Actualizar
+            </Button>
+            <Button size="small" color="error" variant="outlined" startIcon={<LogoutIcon />} onClick={onLogout}>
+              Salir
+            </Button>
+          </Box>
+        </Box>
+
+        {actionSuccessMsg && (
+          <Alert severity="success" sx={{ mb: 3 }}>
+            {actionSuccessMsg}
+          </Alert>
+        )}
+
         {/* Cabecera del CRM */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
           <Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Typography variant="h4" sx={{ fontWeight: 800 }}>
-                Consola de Gestión • <span style={{ color: '#FF6F22' }}>Eos Protección</span>
-              </Typography>
-              <Chip label="Adriana Martínez - Lic. G082442" color="primary" size="small" sx={{ fontWeight: 700 }} />
-            </Box>
+            <Typography variant="h4" sx={{ fontWeight: 800 }}>
+              Consola de Operaciones • <span style={{ color: '#FF6F22' }}>Eos Protección</span>
+            </Typography>
             <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
-              Panel ejecutivo de pólizas, cartera de clientes, cotizaciones de la web y siniestros.
+              Gestión comercial de prospectos, clientes, pólizas, aseguradoras y siniestros.
             </Typography>
           </Box>
 
           <Box sx={{ display: 'flex', gap: 1.5 }}>
-            <Button
-              variant="outlined"
-              startIcon={<RefreshIcon />}
-              onClick={loadAllData}
-              size="small"
-            >
-              Actualizar
-            </Button>
             <Button
               variant="contained"
               color="primary"
@@ -275,7 +408,7 @@ export default function AdminDashboard() {
                     {stats.policies_due_soon}
                   </Typography>
                   <Typography variant="caption" sx={{ color: '#EF4444', fontWeight: 700 }}>
-                    Vencen en menos de 30 días
+                    Vencen en &lt; 30 días
                   </Typography>
                 </CardContent>
               </Card>
@@ -285,13 +418,13 @@ export default function AdminDashboard() {
               <Card sx={{ borderLeft: '5px solid #FF6F22' }}>
                 <CardContent sx={{ p: 2 }}>
                   <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textTransform: 'uppercase' }}>
-                    Nuevos Prospectos Web
+                    Prospectos / Cotizaciones
                   </Typography>
                   <Typography variant="h4" sx={{ fontWeight: 800, mt: 0.5, color: '#FF6F22' }}>
                     {stats.new_leads}
                   </Typography>
-                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                    Por contactar
+                  <Typography variant="caption" sx={{ color: '#FF6F22', fontWeight: 700 }}>
+                    Pendientes de contacto
                   </Typography>
                 </CardContent>
               </Card>
@@ -301,13 +434,13 @@ export default function AdminDashboard() {
               <Card sx={{ borderLeft: '5px solid #8B5CF6' }}>
                 <CardContent sx={{ p: 2 }}>
                   <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textTransform: 'uppercase' }}>
-                    Volumen Mensual
+                    Primas Gestionadas
                   </Typography>
                   <Typography variant="h4" sx={{ fontWeight: 800, mt: 0.5, color: '#8B5CF6' }}>
                     ${stats.total_monthly_volume}
                   </Typography>
                   <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                    Primas bajo gestión
+                    Volumen mensual
                   </Typography>
                 </CardContent>
               </Card>
@@ -328,12 +461,15 @@ export default function AdminDashboard() {
           >
             <Tab icon={<PolicyIcon />} iconPosition="start" label={`Pólizas & Renovaciones (${policies.length})`} />
             <Tab icon={<PeopleAltIcon />} iconPosition="start" label={`Directorio de Clientes (${clients.length})`} />
-            <Tab icon={<AssignmentIcon />} iconPosition="start" label={`Leads del Cotizador (${quotes.length})`} />
+            <Tab icon={<AssignmentIcon />} iconPosition="start" label={`Prospectos / Cotizador (${quotes.length})`} />
             <Tab icon={<LocalHospitalIcon />} iconPosition="start" label={`Siniestros & Hospitalización (${claims.length})`} />
+            {isSuperadmin && (
+              <Tab icon={<AdminPanelSettingsIcon />} iconPosition="start" label={`Gestión de Usuarios (${systemUsers.length})`} />
+            )}
           </Tabs>
         </Paper>
 
-        {/* TAB 0: GESTIÓN DE PÓLIZAS & RENOVACIONES */}
+        {/* TAB 0: PÓLIZAS */}
         {tabIndex === 0 && (
           <Box>
             <Box sx={{ display: 'flex', gap: 2, mb: 2.5, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -372,7 +508,7 @@ export default function AdminDashboard() {
                     <TableCell sx={{ fontWeight: 800 }}>Aseguradora</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>Plan</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>Prima / Subsidio</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>Vencimiento / Renovación</TableCell>
+                    <TableCell sx={{ fontWeight: 800 }}>Vencimiento</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>Estado</TableCell>
                     <TableCell sx={{ fontWeight: 800 }} align="right">Acciones</TableCell>
                   </TableRow>
@@ -445,7 +581,7 @@ export default function AdminDashboard() {
           </Box>
         )}
 
-        {/* TAB 1: CLIENTES CRM */}
+        {/* TAB 1: CLIENTES */}
         {tabIndex === 1 && (
           <Box>
             <Box sx={{ mb: 2.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -521,88 +657,132 @@ export default function AdminDashboard() {
           </Box>
         )}
 
-        {/* TAB 2: LEADS DEL COTIZADOR */}
+        {/* TAB 2: PROSPECTOS / COTIZADOR (CON BOTÓN CONVERTIR A CLIENTE) */}
         {tabIndex === 2 && (
           <Box>
+            <Alert severity="info" sx={{ mb: 2.5 }}>
+              Estos son los prospectos que han solicitado cotización en la web. Al contactarlos y llegar a un acuerdo, presiona <strong>"Convertir en Cliente y Emitir Póliza"</strong> para crear automáticamente su ficha de cliente y cerrar el contrato.
+            </Alert>
+
             <TableContainer component={Paper}>
               <Table>
                 <TableHead sx={{ bgcolor: theme.palette.mode === 'light' ? '#F8FAFC' : '#1A2538' }}>
                   <TableRow>
                     <TableCell sx={{ fontWeight: 800 }}>Fecha</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>Prospecto</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>Contacto</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>Interés</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>Ingreso / Hogar</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>Subsidio Est.</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>Prima Est.</TableCell>
+                    <TableCell sx={{ fontWeight: 800 }}>Contacto Rápido</TableCell>
+                    <TableCell sx={{ fontWeight: 800 }}>Servicios de Interés</TableCell>
+                    <TableCell sx={{ fontWeight: 800 }}>Ingreso Est.</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>Estado</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }} align="right">Gestionar</TableCell>
+                    <TableCell sx={{ fontWeight: 800 }} align="right">Cierre de Póliza</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {quotes.map((q) => (
-                    <TableRow key={q.id} hover>
-                      <TableCell sx={{ fontSize: '0.82rem' }}>
-                        {new Date(q.created_at).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>{q.client_name}</TableCell>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="body2">{q.phone}</Typography>
-                          <IconButton
+                  {quotes.map((q) => {
+                    const isClosed = q.status.includes('Cerrado') || q.status.includes('Cliente');
+                    return (
+                      <TableRow key={q.id} hover>
+                        <TableCell sx={{ fontSize: '0.82rem' }}>
+                          {new Date(q.created_at).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                            {q.client_name}
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                            Zip: {q.zip_code} • {q.household_members} pers.
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              startIcon={<WhatsAppIcon />}
+                              component="a"
+                              href={`https://wa.me/1${q.phone.replace(/\D/g, '')}?text=Hola%20${encodeURIComponent(q.client_name)},%20te%20saluda%20Adriana%20Mart%C3%ADnez%20de%20Eos%20Protecci%C3%B3n.%20Recib%C3%AD%20tu%20solicitud%20de%20cotizaci%C3%B3n%20para%20${encodeURIComponent(q.interested_products)}.`}
+                              target="_blank"
+                              sx={{
+                                color: '#25D366',
+                                borderColor: '#25D366',
+                                textTransform: 'none',
+                                fontSize: '0.78rem',
+                              }}
+                            >
+                              WhatsApp
+                            </Button>
+                            <IconButton size="small" component="a" href={`tel:${q.phone}`} color="primary">
+                              <PhoneIcon sx={{ fontSize: 18 }} />
+                            </IconButton>
+                          </Box>
+                        </TableCell>
+                        <TableCell sx={{ maxWidth: 220 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: '#0B4F9C', fontSize: '0.85rem' }}>
+                            {q.interested_products}
+                          </Typography>
+                          {q.notes && (
+                            <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
+                              Nota: {q.notes}
+                            </Typography>
+                          )}
+                        </TableCell>
+                        <TableCell sx={{ fontSize: '0.85rem' }}>
+                          ${q.annual_income.toLocaleString()}
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={q.status}
                             size="small"
-                            component="a"
-                            href={`https://wa.me/1${q.phone.replace(/\D/g, '')}?text=Hola%20${encodeURIComponent(q.client_name)},%20soy%20Adriana%20Mart%C3%ADnez%20de%20Eos%20Protecci%C3%B3n.%20Vi%20tu%20cotizaci%C3%B3n%20de%20${encodeURIComponent(q.interested_products)}.`}
-                            target="_blank"
-                            sx={{ color: '#25D366' }}
-                          >
-                            <WhatsAppIcon sx={{ fontSize: 16 }} />
-                          </IconButton>
-                        </Box>
-                        {q.email && <Typography variant="caption" sx={{ color: 'text.secondary' }}>{q.email}</Typography>}
-                      </TableCell>
-                      <TableCell sx={{ maxWidth: 200, fontSize: '0.85rem' }}>{q.interested_products}</TableCell>
-                      <TableCell sx={{ fontSize: '0.85rem' }}>
-                        ${q.annual_income.toLocaleString()} ({q.household_members} pers.)
-                      </TableCell>
-                      <TableCell sx={{ fontWeight: 700, color: '#0B4F9C' }}>${q.estimated_subsidy}/m</TableCell>
-                      <TableCell sx={{ fontWeight: 700, color: '#10B981' }}>${q.estimated_premium}/m</TableCell>
-                      <TableCell>
-                        <Chip
-                          label={q.status}
-                          size="small"
-                          color={q.status === 'Nuevo' ? 'primary' : q.status === 'Contactado' ? 'secondary' : 'success'}
-                          sx={{ fontWeight: 700 }}
-                        />
-                      </TableCell>
-                      <TableCell align="right">
-                        <TextField
-                          select
-                          size="small"
-                          value={q.status}
-                          onChange={(e) => handleUpdateQuoteStatus(q.id, e.target.value)}
-                          sx={{ minWidth: 120 }}
-                        >
-                          <MenuItem value="Nuevo">Nuevo</MenuItem>
-                          <MenuItem value="Contactado">Contactado</MenuItem>
-                          <MenuItem value="Cotizado">Cotizado</MenuItem>
-                          <MenuItem value="Cerrado">Cerrado</MenuItem>
-                          <MenuItem value="No Interesado">No Interesado</MenuItem>
-                        </TextField>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                            color={isClosed ? 'success' : q.status === 'Contactado' ? 'secondary' : 'warning'}
+                            sx={{ fontWeight: 700 }}
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                            {!isClosed ? (
+                              <Button
+                                variant="contained"
+                                size="small"
+                                color="success"
+                                startIcon={<HowToRegIcon />}
+                                onClick={() => handleConvertLead(q)}
+                                sx={{ fontWeight: 700, textTransform: 'none', fontSize: '0.78rem' }}
+                              >
+                                Convertir en Cliente y Emitir
+                              </Button>
+                            ) : (
+                              <Chip label="Cliente Creado" color="success" variant="outlined" size="small" />
+                            )}
+
+                            <TextField
+                              select
+                              size="small"
+                              value={q.status}
+                              onChange={(e) => handleUpdateQuoteStatus(q.id, e.target.value)}
+                              sx={{ minWidth: 110 }}
+                            >
+                              <MenuItem value="Pendiente de Contacto">Pendiente</MenuItem>
+                              <MenuItem value="Contactado">Contactado</MenuItem>
+                              <MenuItem value="Cotizado">Cotizado</MenuItem>
+                              <MenuItem value="Cerrado / Cliente Creado">Cerrado</MenuItem>
+                              <MenuItem value="No Interesado">No Interesado</MenuItem>
+                            </TextField>
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </TableContainer>
           </Box>
         )}
 
-        {/* TAB 3: SINIESTROS & INDEMNIZACIONES POR HOSPITALIZACIÓN */}
+        {/* TAB 3: SINIESTROS */}
         {tabIndex === 3 && (
           <Box>
             <Alert severity="info" sx={{ mb: 2.5 }}>
-              <strong>Cobertura de Hospitalización:</strong> "Recibes dinero por cada día internado, así puedes enfocarte en lo más importante, sanar sin preocuparte por lo demás." Beneficio diario calculado: $300 USD / día.
+              <strong>Cobertura de Hospitalización:</strong> Indemnizaciones por días de internación calculadas a razón de $300 USD / día.
             </Alert>
 
             <TableContainer component={Paper}>
@@ -613,7 +793,7 @@ export default function AdminDashboard() {
                     <TableCell sx={{ fontWeight: 800 }}>Asegurado</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>Tipo de Asistencia</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>Días Internado</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>Indemnización Estimada</TableCell>
+                    <TableCell sx={{ fontWeight: 800 }}>Indemnización</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>Fecha Incidente</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>Estado</TableCell>
                     <TableCell sx={{ fontWeight: 800 }} align="right">Gestión</TableCell>
@@ -655,6 +835,69 @@ export default function AdminDashboard() {
                           <MenuItem value="Indemnizado">Indemnizado</MenuItem>
                           <MenuItem value="Rechazado">Rechazado</MenuItem>
                         </TextField>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+        )}
+
+        {/* TAB 4: GESTIÓN DE USUARIOS (SUPERADMIN ONLY) */}
+        {isSuperadmin && tabIndex === 4 && (
+          <Box>
+            <Box sx={{ mb: 2.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                Control de Usuarios y Administradores del Sistema
+              </Typography>
+              <Button
+                variant="contained"
+                color="secondary"
+                startIcon={<PersonAddIcon />}
+                onClick={() => setOpenUserModal(true)}
+              >
+                Nuevo Administrador
+              </Button>
+            </Box>
+
+            <TableContainer component={Paper}>
+              <Table>
+                <TableHead sx={{ bgcolor: theme.palette.mode === 'light' ? '#F8FAFC' : '#1A2538' }}>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 800 }}>ID</TableCell>
+                    <TableCell sx={{ fontWeight: 800 }}>Nombre Completo</TableCell>
+                    <TableCell sx={{ fontWeight: 800 }}>Correo Electrónico</TableCell>
+                    <TableCell sx={{ fontWeight: 800 }}>Rol</TableCell>
+                    <TableCell sx={{ fontWeight: 800 }}>Estado</TableCell>
+                    <TableCell sx={{ fontWeight: 800 }}>Fecha Registro</TableCell>
+                    <TableCell sx={{ fontWeight: 800 }} align="right">Acciones</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {systemUsers.map((u) => (
+                    <TableRow key={u.id} hover>
+                      <TableCell sx={{ fontWeight: 700 }}>#{u.id}</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>{u.full_name}</TableCell>
+                      <TableCell>{u.email}</TableCell>
+                      <TableCell>
+                        <Chip
+                          label={u.role === 'superadmin' ? 'Superadministrador' : 'Administradora'}
+                          color={u.role === 'superadmin' ? 'secondary' : 'primary'}
+                          size="small"
+                          sx={{ fontWeight: 700 }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Chip label={u.is_active ? 'Activo' : 'Inactivo'} color={u.is_active ? 'success' : 'default'} size="small" />
+                      </TableCell>
+                      <TableCell sx={{ fontSize: '0.85rem' }}>{new Date(u.created_at).toLocaleDateString()}</TableCell>
+                      <TableCell align="right">
+                        {u.role !== 'superadmin' && (
+                          <IconButton size="small" color="error" onClick={() => handleDeleteUser(u.id)}>
+                            <DeleteIcon sx={{ fontSize: 18 }} />
+                          </IconButton>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -731,9 +974,9 @@ export default function AdminDashboard() {
           </DialogActions>
         </Dialog>
 
-        {/* MODAL CREAR PÓLIZA */}
+        {/* MODAL CREAR / EMITIR PÓLIZA */}
         <Dialog open={openPolicyModal} onClose={() => setOpenPolicyModal(false)} maxWidth="sm" fullWidth>
-          <DialogTitle sx={{ fontWeight: 800 }}>Emitir / Registrar Póliza</DialogTitle>
+          <DialogTitle sx={{ fontWeight: 800 }}>Emitir y Cerrar Póliza</DialogTitle>
           <DialogContent dividers>
             <Grid container spacing={2} sx={{ pt: 1 }}>
               <Grid item xs={12}>
@@ -852,7 +1095,52 @@ export default function AdminDashboard() {
           <DialogActions sx={{ p: 2 }}>
             <Button onClick={() => setOpenPolicyModal(false)}>Cancelar</Button>
             <Button variant="contained" color="secondary" onClick={handleSavePolicy}>
-              Guardar Póliza
+              Guardar y Emitir Póliza
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* MODAL CREAR USUARIO (SUPERADMIN) */}
+        <Dialog open={openUserModal} onClose={() => setOpenUserModal(false)} maxWidth="xs" fullWidth>
+          <DialogTitle sx={{ fontWeight: 800 }}>Crear Nuevo Administrador</DialogTitle>
+          <DialogContent dividers>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+              <TextField
+                fullWidth
+                label="Nombre Completo"
+                value={userForm.full_name}
+                onChange={(e) => setUserForm({ ...userForm, full_name: e.target.value })}
+              />
+              <TextField
+                fullWidth
+                label="Correo Electrónico"
+                type="email"
+                value={userForm.email}
+                onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
+              />
+              <TextField
+                fullWidth
+                label="Contraseña"
+                type="password"
+                value={userForm.password}
+                onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
+              />
+              <TextField
+                select
+                fullWidth
+                label="Rol del Usuario"
+                value={userForm.role}
+                onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
+              >
+                <MenuItem value="admin">Administrador / Agente</MenuItem>
+                <MenuItem value="superadmin">Superadministrador</MenuItem>
+              </TextField>
+            </Box>
+          </DialogContent>
+          <DialogActions sx={{ p: 2 }}>
+            <Button onClick={() => setOpenUserModal(false)}>Cancelar</Button>
+            <Button variant="contained" color="secondary" onClick={handleCreateUser}>
+              Crear Usuario
             </Button>
           </DialogActions>
         </Dialog>

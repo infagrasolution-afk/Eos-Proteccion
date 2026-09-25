@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   AppBar,
   Toolbar,
@@ -9,6 +9,13 @@ import {
   Chip,
   IconButton,
   Tooltip,
+  Badge,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
+  Divider,
+  Avatar,
   useTheme,
   useMediaQuery,
 } from '@mui/material';
@@ -22,6 +29,12 @@ import Brightness7Icon from '@mui/icons-material/Brightness7';
 import SmartphoneIcon from '@mui/icons-material/Smartphone';
 import ComputerIcon from '@mui/icons-material/Computer';
 import BadgeIcon from '@mui/icons-material/VerifiedUser';
+import NotificationsIcon from '@mui/icons-material/Notifications';
+import LockOpenIcon from '@mui/icons-material/LockOpen';
+import LogoutIcon from '@mui/icons-material/Logout';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+import PersonIcon from '@mui/icons-material/Person';
+import SendIcon from '@mui/icons-material/Send';
 
 export default function Navbar({
   currentView,
@@ -32,9 +45,32 @@ export default function Navbar({
   setIsMobileSim,
   onOpenQuoteModal,
   onOpenClientPortal,
+  currentUser,
+  onOpenLoginModal,
+  onLogout,
+  notifications = [],
+  unreadNotifsCount = 0,
+  onNotificationClick,
+  onMarkAllNotificationsRead,
 }) {
   const theme = useTheme();
   const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
+
+  // Menú de Notificaciones
+  const [notifAnchorEl, setNotifAnchorEl] = useState(null);
+  const openNotif = Boolean(notifAnchorEl);
+
+  // Menú de Usuario
+  const [userAnchorEl, setUserAnchorEl] = useState(null);
+  const openUser = Boolean(userAnchorEl);
+
+  const handleAdminClick = () => {
+    if (!currentUser) {
+      onOpenLoginModal();
+    } else {
+      setCurrentView('admin');
+    }
+  };
 
   return (
     <AppBar position="sticky" elevation={0}>
@@ -130,7 +166,7 @@ export default function Navbar({
                 startIcon={<DashboardIcon sx={{ fontSize: 18 }} />}
                 variant={currentView === 'admin' ? 'contained' : 'text'}
                 color={currentView === 'admin' ? 'secondary' : 'inherit'}
-                onClick={() => setCurrentView('admin')}
+                onClick={handleAdminClick}
                 sx={{
                   borderRadius: '9px',
                   px: 1.5,
@@ -142,23 +178,127 @@ export default function Navbar({
               </Button>
             </Box>
 
-            {/* Botón Consultar Póliza */}
+            {/* Botón Cotizar Rápido */}
             <Button
               variant="outlined"
+              size="small"
+              startIcon={<SendIcon sx={{ fontSize: 16 }} />}
+              onClick={() => {
+                const el = document.getElementById('formulario-cotizacion');
+                if (el) {
+                  el.scrollIntoView({ behavior: 'smooth' });
+                } else {
+                  setCurrentView('public');
+                  setTimeout(() => {
+                    document.getElementById('formulario-cotizacion')?.scrollIntoView({ behavior: 'smooth' });
+                  }, 150);
+                }
+              }}
+              sx={{
+                display: { xs: 'none', md: 'flex' },
+                borderColor: '#FF6F22',
+                color: '#FF6F22',
+                fontWeight: 700,
+                '&:hover': {
+                  borderColor: '#E0530A',
+                  backgroundColor: 'rgba(255, 111, 34, 0.05)',
+                },
+              }}
+            >
+              Solicitar Cotización
+            </Button>
+
+            {/* Botón Consultar Póliza */}
+            <Button
+              variant="text"
               size="small"
               onClick={onOpenClientPortal}
               sx={{
                 display: { xs: 'none', md: 'flex' },
-                borderColor: '#0B4F9C',
                 color: '#0B4F9C',
-                '&:hover': {
-                  borderColor: '#07366E',
-                  backgroundColor: 'rgba(11, 79, 156, 0.04)',
-                },
+                fontWeight: 700,
               }}
             >
               Mi Póliza
             </Button>
+
+            {/* Centro de Notificaciones en la App (Campana con Badge) */}
+            {currentUser && (
+              <>
+                <Tooltip title="Notificaciones en Tiempo Real">
+                  <IconButton
+                    color="inherit"
+                    onClick={(e) => setNotifAnchorEl(e.currentTarget)}
+                    sx={{ position: 'relative' }}
+                  >
+                    <Badge badgeContent={unreadNotifsCount} color="error">
+                      <NotificationsIcon sx={{ color: unreadNotifsCount > 0 ? '#FF6F22' : 'inherit' }} />
+                    </Badge>
+                  </IconButton>
+                </Tooltip>
+
+                <Menu
+                  anchorEl={notifAnchorEl}
+                  open={openNotif}
+                  onClose={() => setNotifAnchorEl(null)}
+                  PaperProps={{
+                    sx: { width: 360, maxHeight: 420, borderRadius: '16px', p: 1 },
+                  }}
+                  transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+                  anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+                >
+                  <Box sx={{ p: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                      Notificaciones ({unreadNotifsCount} nuevas)
+                    </Typography>
+                    {unreadNotifsCount > 0 && (
+                      <Button size="small" onClick={onMarkAllNotificationsRead} sx={{ fontSize: '0.75rem' }}>
+                        Marcar leídas
+                      </Button>
+                    )}
+                  </Box>
+                  <Divider sx={{ my: 0.5 }} />
+
+                  {notifications.length === 0 ? (
+                    <Box sx={{ p: 2, textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                        No hay notificaciones pendientes.
+                      </Typography>
+                    </Box>
+                  ) : (
+                    notifications.map((n) => (
+                      <MenuItem
+                        key={n.id}
+                        onClick={() => {
+                          setNotifAnchorEl(null);
+                          onNotificationClick(n);
+                        }}
+                        sx={{
+                          py: 1.2,
+                          px: 1.5,
+                          borderRadius: '10px',
+                          mb: 0.5,
+                          bgcolor: !n.is_read ? (theme.palette.mode === 'light' ? '#FFF5EE' : '#1F293D') : 'transparent',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'flex-start',
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', mb: 0.5 }}>
+                          <Typography variant="caption" sx={{ fontWeight: 800, color: '#FF6F22' }}>
+                            {n.title}
+                          </Typography>
+                          {!n.is_read && <Chip label="Nuevo" color="primary" size="small" sx={{ height: 16, fontSize: '0.62rem' }} />}
+                        </Box>
+                        <Typography variant="body2" sx={{ fontSize: '0.82rem', color: 'text.primary', lineHeight: 1.3 }}>
+                          {n.message}
+                        </Typography>
+                      </MenuItem>
+                    ))
+                  )}
+                </Menu>
+              </>
+            )}
 
             {/* Botón WhatsApp */}
             <Tooltip title="Chatear con Adriana por WhatsApp">
@@ -171,11 +311,11 @@ export default function Navbar({
                   backgroundColor: '#25D366',
                   color: '#fff',
                   '&:hover': { backgroundColor: '#1EBE5D' },
-                  width: 38,
-                  height: 38,
+                  width: 36,
+                  height: 36,
                 }}
               >
-                <WhatsAppIcon sx={{ fontSize: 20 }} />
+                <WhatsAppIcon sx={{ fontSize: 18 }} />
               </IconButton>
             </Tooltip>
 
@@ -188,21 +328,96 @@ export default function Navbar({
                   backgroundColor: '#FF6F22',
                   color: '#fff',
                   '&:hover': { backgroundColor: '#E0530A' },
-                  width: 38,
-                  height: 38,
+                  width: 36,
+                  height: 36,
                 }}
               >
-                <PhoneIcon sx={{ fontSize: 20 }} />
+                <PhoneIcon sx={{ fontSize: 18 }} />
               </IconButton>
             </Tooltip>
 
-            {/* Simulador Vista Móvil / Escritorio */}
-            <Tooltip title={isMobileSim ? "Cambiar a Vista Pantalla Completa" : "Simular Vista Móvil / App"}>
+            {/* Perfil / Login */}
+            {currentUser ? (
+              <>
+                <Chip
+                  avatar={
+                    <Avatar sx={{ bgcolor: currentUser.role === 'superadmin' ? '#0B4F9C' : '#FF6F22', color: '#fff' }}>
+                      {currentUser.full_name ? currentUser.full_name.charAt(0) : 'U'}
+                    </Avatar>
+                  }
+                  label={currentUser.role === 'superadmin' ? 'Superadmin' : 'Adriana (Admin)'}
+                  onClick={(e) => setUserAnchorEl(e.currentTarget)}
+                  color={currentUser.role === 'superadmin' ? 'secondary' : 'primary'}
+                  variant="outlined"
+                  sx={{ fontWeight: 700, cursor: 'pointer' }}
+                />
+
+                <Menu
+                  anchorEl={userAnchorEl}
+                  open={openUser}
+                  onClose={() => setUserAnchorEl(null)}
+                  PaperProps={{ sx: { width: 220, borderRadius: '14px', p: 0.5 } }}
+                  transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+                  anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+                >
+                  <Box sx={{ px: 2, py: 1 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                      {currentUser.full_name}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                      {currentUser.email}
+                    </Typography>
+                  </Box>
+                  <Divider sx={{ my: 0.5 }} />
+                  <MenuItem
+                    onClick={() => {
+                      setUserAnchorEl(null);
+                      setCurrentView('admin');
+                    }}
+                  >
+                    <ListItemIcon>
+                      <DashboardIcon fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText primary="Consola CRM" />
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() => {
+                      setUserAnchorEl(null);
+                      onLogout();
+                    }}
+                    sx={{ color: '#EF4444' }}
+                  >
+                    <ListItemIcon>
+                      <LogoutIcon fontSize="small" sx={{ color: '#EF4444' }} />
+                    </ListItemIcon>
+                    <ListItemText primary="Cerrar Sesión" />
+                  </MenuItem>
+                </Menu>
+              </>
+            ) : (
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<LockOpenIcon />}
+                onClick={onOpenLoginModal}
+                sx={{
+                  borderRadius: '10px',
+                  fontWeight: 700,
+                  fontSize: '0.8rem',
+                }}
+              >
+                Ingresar
+              </Button>
+            )}
+
+            {/* Simulador Móvil */}
+            <Tooltip title={isMobileSim ? "Vista Escritorio" : "Simular Vista Móvil / App"}>
               <IconButton
                 onClick={() => setIsMobileSim(!isMobileSim)}
                 sx={{
                   color: isMobileSim ? '#FF6F22' : 'text.secondary',
                   border: isMobileSim ? '1px solid #FF6F22' : 'none',
+                  display: { xs: 'none', sm: 'inline-flex' },
                 }}
               >
                 {isMobileSim ? <ComputerIcon /> : <SmartphoneIcon />}

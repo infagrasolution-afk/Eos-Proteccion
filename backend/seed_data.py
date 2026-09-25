@@ -1,12 +1,47 @@
 from datetime import date, timedelta
 from database import SessionLocal, engine, Base
-from models import AgentProfile, InsuranceProduct, Client, Policy, QuoteLead, Claim
+from models import AgentProfile, InsuranceProduct, Client, Policy, QuoteLead, Claim, User, Notification
+from auth import get_password_hash
 
 def seed():
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
 
-    # Si ya hay perfil, no volver a sembrar
+    # 0. Usuarios del Sistema: Superadmin (Usuario) y Admin (Adriana Martínez)
+    if not db.query(User).filter(User.email == "superadmin@eosproteccion.com").first():
+        superadmin = User(
+            email="superadmin@eosproteccion.com",
+            hashed_password=get_password_hash("SuperAdmin2026!"),
+            full_name="Super Administrador (CEO)",
+            role="superadmin",
+            is_active=True
+        )
+        db.add(superadmin)
+
+    if not db.query(User).filter(User.email == "adrianamhealth@gmail.com").first():
+        adriana = User(
+            email="adrianamhealth@gmail.com",
+            hashed_password=get_password_hash("Adriana2026!"),
+            full_name="Adriana Martínez",
+            role="admin",
+            is_active=True
+        )
+        db.add(adriana)
+    
+    # 0.1 Notificación inicial
+    if not db.query(Notification).first():
+        notif = Notification(
+            title="🔔 ¡Nueva Solicitud de Cotización!",
+            message="Jessica Padrón ha solicitado cotización para: Seguro de Salud (Obamacare) + Odontología. Tel: 786-320-1944",
+            type="quote_request",
+            is_read=False,
+            lead_id=1
+        )
+        db.add(notif)
+
+    db.commit()
+
+    # Si ya hay perfil, no volver a sembrar el resto
     if db.query(AgentProfile).first():
         db.close()
         return
