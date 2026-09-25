@@ -24,42 +24,42 @@ export default function ProductCards({ products = [], onSelectProductToQuote }) 
     switch (slug) {
       case 'seguro-salud':
         return {
-          icon: <HealthAndSafetyIcon sx={{ fontSize: 32, color: '#0B4F9C' }} />,
+          icon: <HealthAndSafetyIcon sx={{ fontSize: 30, color: '#0B4F9C' }} />,
           color: '#0B4F9C',
           bgColor: 'rgba(11, 79, 156, 0.08)',
           badgeColor: 'secondary',
         };
       case 'seguro-vida':
         return {
-          icon: <FavoriteIcon sx={{ fontSize: 32, color: '#FF6F22' }} />,
+          icon: <FavoriteIcon sx={{ fontSize: 30, color: '#FF6F22' }} />,
           color: '#FF6F22',
           bgColor: 'rgba(255, 111, 34, 0.08)',
           badgeColor: 'primary',
         };
       case 'seguro-odontologia':
         return {
-          icon: <MedicalServicesIcon sx={{ fontSize: 32, color: '#00A896' }} />,
+          icon: <MedicalServicesIcon sx={{ fontSize: 30, color: '#00A896' }} />,
           color: '#00A896',
           bgColor: 'rgba(0, 168, 150, 0.08)',
           badgeColor: 'info',
         };
       case 'seguro-accidentes':
         return {
-          icon: <HealingIcon sx={{ fontSize: 32, color: '#D97706' }} />,
+          icon: <HealingIcon sx={{ fontSize: 30, color: '#D97706' }} />,
           color: '#D97706',
           bgColor: 'rgba(217, 119, 6, 0.08)',
           badgeColor: 'warning',
         };
       case 'seguro-hospitalizacion':
         return {
-          icon: <LocalHospitalIcon sx={{ fontSize: 32, color: '#DC2626' }} />,
+          icon: <LocalHospitalIcon sx={{ fontSize: 30, color: '#DC2626' }} />,
           color: '#DC2626',
           bgColor: 'rgba(220, 38, 38, 0.08)',
           badgeColor: 'error',
         };
       default:
         return {
-          icon: <HealthAndSafetyIcon sx={{ fontSize: 32, color: '#FF6F22' }} />,
+          icon: <HealthAndSafetyIcon sx={{ fontSize: 30, color: '#FF6F22' }} />,
           color: '#FF6F22',
           bgColor: 'rgba(255, 111, 34, 0.08)',
           badgeColor: 'primary',
@@ -68,7 +68,14 @@ export default function ProductCards({ products = [], onSelectProductToQuote }) 
   };
 
   return (
-    <Box sx={{ py: { xs: 5, md: 8 }, bgcolor: theme.palette.mode === 'light' ? '#FAFCFE' : '#0E1626' }} id="servicios-coberturas">
+    <Box
+      component="section"
+      sx={{
+        py: { xs: 5, md: 8 },
+        bgcolor: theme.palette.mode === 'light' ? '#FAFCFE' : '#0E1626',
+      }}
+      id="servicios-coberturas"
+    >
       <Container maxWidth="lg">
         {/* Encabezado */}
         <Box sx={{ textAlign: 'center', mb: { xs: 4, md: 6 } }}>
@@ -102,8 +109,8 @@ export default function ProductCards({ products = [], onSelectProductToQuote }) 
           </Typography>
         </Box>
 
-        {/* Tarjetas Limpias y Organizadas */}
-        <Grid container spacing={3}>
+        {/* Tarjetas 100% Homogéneas en Tamaño y Responsive */}
+        <Grid container spacing={3} justifyContent="center" alignItems="stretch">
           {products.map((product) => {
             const meta = getProductMeta(product.slug);
 
@@ -112,32 +119,43 @@ export default function ProductCards({ products = [], onSelectProductToQuote }) 
                 item
                 xs={12}
                 sm={6}
-                md={product.slug === 'seguro-salud' || product.slug === 'seguro-vida' ? 6 : 4}
+                md={4}
                 key={product.id}
+                sx={{ display: 'flex' }}
               >
                 <Card
                   sx={{
+                    width: '100%',
                     height: '100%',
                     display: 'flex',
                     flexDirection: 'column',
-                    p: 3,
+                    p: { xs: 2.5, sm: 3 },
                     borderRadius: '18px',
-                    border: '1px solid',
+                    border: '1.5px solid',
                     borderColor: theme.palette.mode === 'light' ? '#E2E8F0' : '#1E293B',
-                    transition: 'transform 0.2s ease, border-color 0.2s ease',
+                    transition: 'all 0.25s ease-in-out',
                     '&:hover': {
-                      transform: 'translateY(-4px)',
+                      transform: 'translateY(-5px)',
                       borderColor: meta.color,
-                      boxShadow: `0 12px 28px -10px ${meta.color}25`,
+                      boxShadow: `0 14px 28px -10px ${meta.color}30`,
                     },
                   }}
                 >
-                  <CardContent sx={{ p: 0, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                  <CardContent
+                    sx={{
+                      p: 0,
+                      '&:last-child': { pb: 0 },
+                      flexGrow: 1,
+                      display: 'flex',
+                      flexDirection: 'column',
+                    }}
+                  >
+                    {/* Fila Superior: Ícono y Badge */}
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                       <Box
                         sx={{
-                          width: 50,
-                          height: 50,
+                          width: 48,
+                          height: 48,
                           borderRadius: '12px',
                           bgcolor: meta.bgColor,
                           display: 'flex',
@@ -155,46 +173,73 @@ export default function ProductCards({ products = [], onSelectProductToQuote }) 
                       />
                     </Box>
 
-                    <Typography variant="h6" sx={{ fontWeight: 800, mb: 0.8 }}>
+                    {/* Título de Póliza */}
+                    <Typography
+                      variant="h6"
+                      sx={{
+                        fontWeight: 800,
+                        fontSize: '1.15rem',
+                        lineHeight: 1.25,
+                        mb: 0.8,
+                        minHeight: 30,
+                        display: 'flex',
+                        alignItems: 'center',
+                      }}
+                    >
                       {product.name}
                     </Typography>
 
-                    <Typography variant="caption" sx={{ color: meta.color, fontWeight: 700, mb: 1.5, display: 'block' }}>
+                    {/* Aseguradoras */}
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: meta.color,
+                        fontWeight: 700,
+                        mb: 1.5,
+                        display: 'block',
+                        minHeight: 20,
+                      }}
+                    >
                       {product.carriers}
                     </Typography>
 
+                    {/* Descripción Homogénea */}
                     <Typography
                       variant="body2"
                       sx={{
                         color: 'text.secondary',
-                        mb: 3,
                         lineHeight: 1.6,
+                        mb: 3,
                         flexGrow: 1,
+                        minHeight: 72,
                       }}
                     >
                       {product.long_desc}
                     </Typography>
 
-                    <Button
-                      variant="outlined"
-                      fullWidth
-                      endIcon={<ArrowDownwardIcon />}
-                      onClick={() => onSelectProductToQuote(product.name)}
-                      sx={{
-                        borderColor: meta.color,
-                        color: meta.color,
-                        fontWeight: 700,
-                        borderRadius: '10px',
-                        py: 1,
-                        fontSize: '0.88rem',
-                        '&:hover': {
+                    {/* Botón Alineado al Fondo de Cada Tarjeta */}
+                    <Box sx={{ mt: 'auto', pt: 1 }}>
+                      <Button
+                        variant="outlined"
+                        fullWidth
+                        endIcon={<ArrowDownwardIcon />}
+                        onClick={() => onSelectProductToQuote(product.name)}
+                        sx={{
                           borderColor: meta.color,
-                          bgcolor: meta.bgColor,
-                        },
-                      }}
-                    >
-                      Seleccionar y Cotizar
-                    </Button>
+                          color: meta.color,
+                          fontWeight: 700,
+                          borderRadius: '10px',
+                          py: 1.1,
+                          fontSize: '0.88rem',
+                          '&:hover': {
+                            borderColor: meta.color,
+                            bgcolor: meta.bgColor,
+                          },
+                        }}
+                      >
+                        Seleccionar y Cotizar
+                      </Button>
+                    </Box>
                   </CardContent>
                 </Card>
               </Grid>
