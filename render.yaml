@@ -23,8 +23,9 @@ services:
   # ==========================================
   # 2. Frontend Static Site (React / Vite)
   # ==========================================
-  - type: static
+  - type: web
     name: eos-proteccion-web
+    runtime: static
     rootDir: frontend
     buildCommand: npm install && npm run build
     staticPublishPath: dist
