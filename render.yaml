@@ -32,7 +32,4 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        fromService:
-          type: web
-          name: eos-proteccion-api
-          property: host
+        value: https://eos-proteccion-api.onrender.com

@@ -1,8 +1,21 @@
-let API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+let API_BASE = import.meta.env.VITE_API_URL;
 
-// En Render, la variable host puede venir sin protocolo https://
+// En Render o producción, asegurar la URL pública completa de la API
+if (!API_BASE || API_BASE === 'eos-proteccion-api') {
+  if (typeof window !== 'undefined' && window.location.hostname.includes('onrender.com')) {
+    API_BASE = 'https://eos-proteccion-api.onrender.com';
+  } else {
+    API_BASE = 'http://localhost:8000';
+  }
+}
+
+// Asegurar protocolo y dominio público si vino sólo el nombre interno
 if (API_BASE && !API_BASE.startsWith('http://') && !API_BASE.startsWith('https://')) {
-  API_BASE = `https://${API_BASE}`;
+  if (API_BASE.includes('.')) {
+    API_BASE = `https://${API_BASE}`;
+  } else {
+    API_BASE = `https://${API_BASE}.onrender.com`;
+  }
 }
 
 export function getAuthToken() {
