@@ -61,15 +61,16 @@ export default function Navbar({
 
   return (
     <AppBar position="sticky" elevation={0} sx={{ borderBottom: '1px solid', borderColor: 'divider' }}>
-      <Container maxWidth="lg">
-        <Toolbar disableGutters sx={{ justifyContent: 'space-between', py: 1 }}>
+      <Container maxWidth="lg" sx={{ px: { xs: 1.5, sm: 2.5, md: 3 } }}>
+        <Toolbar disableGutters sx={{ justifyContent: 'space-between', py: { xs: 0.6, sm: 1 }, minHeight: { xs: 54, sm: 64 } }}>
           {/* Logo Corporativo */}
           <Box
             sx={{
               display: 'flex',
               alignItems: 'center',
-              gap: 1.5,
+              gap: { xs: 1, sm: 1.5 },
               cursor: 'pointer',
+              minWidth: 0,
             }}
             onClick={() => {
               setCurrentView('public');
@@ -78,27 +79,30 @@ export default function Navbar({
           >
             <Box
               sx={{
-                width: 42,
-                height: 42,
-                borderRadius: '12px',
+                width: { xs: 36, sm: 42 },
+                height: { xs: 36, sm: 42 },
+                minWidth: { xs: 36, sm: 42 },
+                borderRadius: '10px',
                 background: 'linear-gradient(135deg, #FF6F22 0%, #0B4F9C 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: '#fff',
-                boxShadow: '0 4px 14px rgba(255, 111, 34, 0.3)',
+                boxShadow: '0 4px 12px rgba(255, 111, 34, 0.25)',
               }}
             >
-              <ShieldIcon sx={{ fontSize: 26 }} />
+              <ShieldIcon sx={{ fontSize: { xs: 22, sm: 26 } }} />
             </Box>
-            <Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ minWidth: 0 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
                 <Typography
                   variant="h6"
                   sx={{
                     fontWeight: 800,
                     lineHeight: 1.1,
                     letterSpacing: '-0.02em',
+                    fontSize: { xs: '1.02rem', sm: '1.25rem' },
+                    whiteSpace: 'nowrap',
                   }}
                 >
                   EOS <span style={{ color: '#FF6F22' }}>PROTECCIÓN</span>
@@ -114,11 +118,29 @@ export default function Navbar({
                     bgcolor: theme.palette.mode === 'light' ? '#EBF3FC' : '#1E293B',
                     color: '#0B4F9C',
                     border: '1px solid #BFDBFE',
+                    display: { xs: 'none', sm: 'inline-flex' },
                   }}
                 />
               </Box>
-              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, display: 'block' }}>
-                Adriana Martínez • Health & Life Insurance
+              <Typography
+                variant="caption"
+                sx={{
+                  color: 'text.secondary',
+                  fontWeight: 600,
+                  display: 'block',
+                  fontSize: { xs: '0.7rem', sm: '0.78rem' },
+                  lineHeight: 1.2,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>
+                  Adriana Martínez • Health & Life Insurance
+                </Box>
+                <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>
+                  Adriana Martínez • <span style={{ color: '#0B4F9C', fontWeight: 700 }}>Lic. G082442</span>
+                </Box>
               </Typography>
             </Box>
           </Box>
@@ -149,7 +171,7 @@ export default function Navbar({
           </Box>
 
           {/* Acciones del Extremo Derecho */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.6, sm: 1.2 } }}>
             {/* WhatsApp Directo */}
             <Button
               variant="outlined"
@@ -181,9 +203,10 @@ export default function Navbar({
                     aria-label="Ver notificaciones del sistema"
                     onClick={(e) => setNotifAnchorEl(e.currentTarget)}
                     size="small"
+                    sx={{ p: { xs: 0.6, sm: 1 } }}
                   >
                     <Badge badgeContent={unreadNotifsCount} color="error">
-                      <NotificationsIcon sx={{ color: unreadNotifsCount > 0 ? '#FF6F22' : 'inherit' }} />
+                      <NotificationsIcon sx={{ fontSize: { xs: 20, sm: 22 }, color: unreadNotifsCount > 0 ? '#FF6F22' : 'inherit' }} />
                     </Badge>
                   </IconButton>
                 </Tooltip>
@@ -240,46 +263,95 @@ export default function Navbar({
                   )}
                 </Menu>
 
+                {/* Botón CRM en Desktop */}
                 <Button
                   variant={currentView === 'admin' ? 'contained' : 'outlined'}
                   color="secondary"
                   size="small"
                   startIcon={<DashboardIcon />}
                   onClick={() => setCurrentView('admin')}
-                  sx={{ borderRadius: '10px', fontSize: '0.82rem', fontWeight: 700 }}
+                  sx={{
+                    borderRadius: '10px',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    display: { xs: 'none', sm: 'inline-flex' },
+                  }}
                 >
                   {currentUser.role === 'superadmin' ? 'CRM Superadmin' : 'CRM Agente'}
                 </Button>
 
+                {/* Botón CRM en Móvil */}
+                <Tooltip title="Panel CRM">
+                  <IconButton
+                    color="secondary"
+                    size="small"
+                    onClick={() => setCurrentView('admin')}
+                    sx={{
+                      bgcolor: currentView === 'admin' ? 'secondary.main' : 'rgba(11, 79, 156, 0.1)',
+                      color: currentView === 'admin' ? '#fff' : 'secondary.main',
+                      borderRadius: '8px',
+                      p: 0.7,
+                      display: { xs: 'inline-flex', sm: 'none' },
+                      '&:hover': { bgcolor: 'secondary.main', color: '#fff' },
+                    }}
+                  >
+                    <DashboardIcon sx={{ fontSize: 18 }} />
+                  </IconButton>
+                </Tooltip>
+
                 <Tooltip title="Cerrar sesión">
-                  <IconButton size="small" color="error" aria-label="Cerrar sesión de usuario" onClick={onLogout}>
-                    <LogoutIcon fontSize="small" />
+                  <IconButton size="small" color="error" aria-label="Cerrar sesión de usuario" onClick={onLogout} sx={{ p: { xs: 0.6, sm: 1 } }}>
+                    <LogoutIcon sx={{ fontSize: { xs: 18, sm: 20 } }} />
                   </IconButton>
                 </Tooltip>
               </>
             ) : (
-              /* Botón único de Acceso para Adriana o Superadmin */
-              <Button
-                variant="contained"
-                size="small"
-                color="secondary"
-                startIcon={<LockOutlinedIcon />}
-                onClick={onOpenLoginModal}
-                sx={{
-                  borderRadius: '10px',
-                  fontWeight: 700,
-                  fontSize: '0.82rem',
-                  px: 2,
-                }}
-              >
-                Acceso Agente
-              </Button>
+              <>
+                {/* Botón Acceso Agente en Desktop */}
+                <Button
+                  variant="contained"
+                  size="small"
+                  color="secondary"
+                  startIcon={<LockOutlinedIcon />}
+                  onClick={onOpenLoginModal}
+                  sx={{
+                    borderRadius: '10px',
+                    fontWeight: 700,
+                    fontSize: '0.82rem',
+                    px: 2,
+                    display: { xs: 'none', sm: 'inline-flex' },
+                  }}
+                >
+                  Acceso Agente
+                </Button>
+
+                {/* Botón Compacto en Móvil para que no se desborde */}
+                <Button
+                  variant="contained"
+                  size="small"
+                  color="secondary"
+                  startIcon={<LockOutlinedIcon sx={{ fontSize: 15 }} />}
+                  onClick={onOpenLoginModal}
+                  sx={{
+                    borderRadius: '8px',
+                    fontWeight: 700,
+                    fontSize: '0.74rem',
+                    py: 0.5,
+                    px: 1.1,
+                    minWidth: 'auto',
+                    whiteSpace: 'nowrap',
+                    display: { xs: 'inline-flex', sm: 'none' },
+                  }}
+                >
+                  Acceso
+                </Button>
+              </>
             )}
 
             {/* Selector Modo Oscuro */}
             <Tooltip title={mode === 'dark' ? 'Modo Claro' : 'Modo Oscuro'}>
-              <IconButton onClick={toggleColorMode} color="inherit" size="small" aria-label="Cambiar tema de color">
-                {mode === 'dark' ? <Brightness7Icon fontSize="small" /> : <Brightness4Icon fontSize="small" />}
+              <IconButton onClick={toggleColorMode} color="inherit" size="small" aria-label="Cambiar tema de color" sx={{ p: { xs: 0.6, sm: 1 } }}>
+                {mode === 'dark' ? <Brightness7Icon sx={{ fontSize: { xs: 18, sm: 20 } }} /> : <Brightness4Icon sx={{ fontSize: { xs: 18, sm: 20 } }} />}
               </IconButton>
             </Tooltip>
           </Box>
